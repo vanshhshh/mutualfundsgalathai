@@ -1,13 +1,32 @@
-FROM node:18-alpine
+FROM node:20-alpine AS base
 
 WORKDIR /app
+RUN apk add --no-cache openssl
+
+FROM base AS deps
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-COPY . .
+FROM deps AS build
+
+COPY prisma ./prisma
+RUN npx prisma generate
+
+COPY tsconfig.json ./
+COPY src ./src
 RUN npm run build
+
+FROM base AS runner
+
+ENV NODE_ENV=production
+ENV PORT=3000
+
+COPY package*.json ./
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=build /app/prisma ./prisma
+COPY --from=build /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["sh", "-c", "npm run db:deploy && npm start"]

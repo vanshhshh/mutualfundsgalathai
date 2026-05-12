@@ -1,0 +1,8 @@
+{$APP_DOMAIN} {
+  encode gzip zstd
+
+  @api path /api/* /health /live /ready
+  reverse_proxy @api backend:3000
+
+  reverse_proxy frontend:3001
+}
