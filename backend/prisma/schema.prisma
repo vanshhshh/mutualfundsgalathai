@@ -1,0 +1,125 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Fund {
+  id               String          @id @default(cuid())
+  name             String          @unique
+  category         String          // e.g., "Large Cap", "Mid Cap", "Balanced"
+  amc              String          // Asset Management Company
+  fundManager      String?
+  aum              Float           // Assets Under Management in billions
+  expenseRatio     Float           // percentage
+  categoryAvgExpense Float         // for comparison
+  
+  // Computed risk metrics
+  volatility       Float?          // annualized volatility
+  concentration   Float?          // top 3 holdings percentage
+  consistency      Float?          // return consistency score 0-100
+  
+  // Risk flags (computed)
+  riskLevel       String          // "Low", "Moderate", "High"
+  
+  performance     Performance?
+  holdings        Holding[]
+  comparisons     FundComparison[] @relation("fund1")
+  comparedWith    FundComparison[] @relation("fund2")
+  watchlistItems  WatchlistItem[]
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Performance {
+  id              String          @id @default(cuid())
+  fundId          String          @unique
+  fund            Fund            @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  
+  returns1Y       Float?
+  returns3Y       Float?
+  returns5Y       Float?
+  returnsYTD      Float?
+  
+  benchmarkReturns1Y Float?
+  benchmarkReturns3Y Float?
+  benchmarkReturns5Y Float?
+  
+  benchmarkName   String          @default("Nifty 50")
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Holding {
+  id              String          @id @default(cuid())
+  fundId          String
+  fund            Fund            @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  
+  stockName       String
+  companyName     String?
+  sector          String?
+  percentage      Float
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@unique([fundId, stockName])
+}
+
+model AIExplanation {
+  id              String          @id @default(cuid())
+  fundId          String?
+  
+  summary         String          @db.Text
+  risks           String          @db.Text    // JSON array
+  strengths       String          @db.Text    // JSON array
+  suitability     String          @db.Text    // JSON object
+  
+  verdict         String          @db.Text    // 1-line recommendation
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model FundComparison {
+  id              String          @id @default(cuid())
+  fund1Id         String
+  fund1           Fund            @relation("fund1", fields: [fund1Id], references: [id], onDelete: Cascade)
+  
+  fund2Id         String
+  fund2           Fund            @relation("fund2", fields: [fund2Id], references: [id], onDelete: Cascade)
+  
+  comparisonText  String          @db.Text    // AI-generated comparison
+  
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  
+  @@unique([fund1Id, fund2Id])
+}
+
+model WatchlistItem {
+  id              String          @id @default(cuid())
+  userId          String
+  fundId          String
+  fund            Fund            @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime        @default(now())
+  
+  @@unique([userId, fundId])
+}
+
+model SearchLog {
+  id              String          @id @default(cuid())
+  query           String
+  resultsCount    Int
+  
+  createdAt       DateTime        @default(now())
+}
